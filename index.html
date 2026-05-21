@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>p5 Viz</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.3/p5.min.js"></script>
+  <style>
+    /* ── Theme ─────────────────────────────────────── */
+    :root {
+      --bg:       #1a1a1a;
+      --surface:  #232323;
+      --border:   #333;
+      --text:     #ddd;
+      --dim:      #666;
+      --accent:   #4a9eff;
+      --input-bg: #2a2a2a;
+      --sw:       260px;   /* sidebar width */
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.4 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Layout ──────────────────────────────────────── */
+    #app {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #canvas-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    #canvas-wrap canvas {
+      display: block;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    #canvas-wrap canvas.grabbing { cursor: grabbing; }
+
+    /* ── Sidebar ─────────────────────────────────────── */
+    #sidebar {
+      width: var(--sw);
+      min-width: var(--sw);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: width .2s, min-width .2s;
+      flex-shrink: 0;
+    }
+
+    #sidebar.collapsed { width: 0; min-width: 0; }
+
+    #sb-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 13px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #sb-head h2 {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    #sb-inner {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 8px 0 12px;
+    }
+
+    #sb-inner::-webkit-scrollbar        { width: 3px; }
+    #sb-inner::-webkit-scrollbar-track  { background: transparent; }
+    #sb-inner::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
+
+    #sb-foot {
+      padding: 9px 13px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    #fps-div {
+      font-size: 11px;
+      color: var(--dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Controls ────────────────────────────────────── */
+    .grp-hdr {
+      padding: 10px 13px 3px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      padding: 4px 13px;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .ctrl-row label { flex: 1; cursor: pointer; user-select: none; overflow: hidden; text-overflow: ellipsis; }
+
+    input[type=checkbox] {
+      width: 14px; height: 14px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .sldr-wrap { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+    .sldr-top  { display: flex; justify-content: space-between; align-items: baseline; }
+
+    .sldr-top span:first-child { font-size: 12px; }
+
+    .sldr-val  { color: var(--accent); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+      height: 14px;
+    }
+
+    input[type=number] {
+      width: 62px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 3px 6px;
+      font-size: 12px;
+    }
+
+    input[type=color] {
+      width: 32px; height: 24px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px;
+      cursor: pointer;
+    }
+
+    /* ── Buttons ─────────────────────────────────────── */
+    .btn {
+      width: 100%;
+      padding: 5px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .btn:hover { border-color: var(--accent); }
+
+    /* ── Toggle (floating) ───────────────────────────── */
+    #sb-toggle {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 10;
+      width: 34px; height: 34px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color .15s;
+    }
+
+    #sb-toggle:hover { border-color: var(--accent); }
+
+    /* ── Mobile ──────────────────────────────────────── */
+    @media (max-width: 600px) {
+      #app         { flex-direction: column; }
+
+      #sidebar {
+        width: 100%  !important;
+        min-width: 0 !important;
+        height: 0;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        transition: height .25s;
+      }
+
+      #sidebar.open-mobile { height: 46vh; }
+
+      #sb-toggle   { top: auto; bottom: 10px; right: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div id="canvas-wrap">
+    <button id="sb-toggle" title="Toggle parameters">⚙</button>
+  </div>
+  <aside id="sidebar">
+    <div id="sb-head"><h2>Parameters</h2></div>
+    <div id="sb-inner"><div id="controls"></div></div>
+    <div id="sb-foot">
+      <div id="fps-div">FPS: —  |  Zoom: 1.00×</div>
+      <button class="btn" id="btn-reset">Reset defaults</button>
+    </div>
+  </aside>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+// ║  ①  PARAMS  —  edit this section for each project       ║
+// ╚══════════════════════════════════════════════════════════╝
+//
+//  Each entry: { value, type, label, group, ...opts }
+//  Types: 'checkbox' | 'slider' (min/max/step) | 'number' (min/max/step) | 'color'
+//  Access anywhere as PARAMS.key.value
+
+const PARAMS = {
+  // ── Display ──────────────────────────────────────────────
+  showGrid:   { value: true,       type: 'checkbox', label: 'Show Grid',   group: 'Display' },
+  gridStep:   { value: 50,         type: 'slider',   label: 'Grid Step',   min: 10, max: 200, step: 10, group: 'Display' },
+  showAxes:   { value: true,       type: 'checkbox', label: 'Show Axes',   group: 'Display' },
+
+  // ── Bézier ───────────────────────────────────────────────
+  showBezier: { value: true,       type: 'checkbox', label: 'Show Bézier', group: 'Bézier' },
+  lineWeight: { value: 2,          type: 'slider',   label: 'Line Weight', min: 0.5, max: 10, step: 0.5, group: 'Bézier' },
+
+  // ── Orbit ────────────────────────────────────────────────
+  showShape:  { value: true,       type: 'checkbox', label: 'Show Shape',  group: 'Orbit' },
+  speed:      { value: 1.0,        type: 'slider',   label: 'Speed',       min: 0, max: 5, step: 0.1, group: 'Orbit' },
+  numSides:   { value: 5,          type: 'number',   label: 'Sides',       min: 3, max: 16, step: 1, group: 'Orbit' },
+  shapeColor: { value: '#4a9eff',  type: 'color',    label: 'Color',       group: 'Orbit' },
+};
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  ②  USER SETUP  —  one-time initialisation              ║
+// ╚══════════════════════════════════════════════════════════╝
+
+// Bézier control points in world coordinates (drag them in the canvas)
+let bpts = [
+  { x: -150, y:  80 },
+  { x:  -45, y: -120 },
+  { x:   45, y:  120 },
+  { x:  150, y:  -80 },
+];
+let dragIdx = -1;
+
+function userSetup() {
+  // ← your one-time setup code here
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  ③  USER DRAW  —  per-frame, in world coordinates       ║
+// ╚══════════════════════════════════════════════════════════╝
+//
+//  t = elapsed seconds  (use for animation)
+//  World origin (0,0) is the canvas centre.
+//  push()/pop() nest correctly inside here.
+
+function userDraw(t) {
+
+  // ── Bézier curve ─────────────────────────────────────────
+  if (PARAMS.showBezier.value) {
+    const [p0, p1, p2, p3] = bpts;
+    const invZ = 1 / cam.zoom;
+
+    // control handles (dashed)
+    stroke(90);
+    strokeWeight(invZ);
+    drawingContext.setLineDash([5 * invZ, 4 * invZ]);
+    line(p0.x, p0.y, p1.x, p1.y);
+    line(p3.x, p3.y, p2.x, p2.y);
+    drawingContext.setLineDash([]);
+
+    // control point circles
+    noFill();
+    stroke(150);
+    strokeWeight(1.5 * invZ);
+    const r = 7 * invZ;
+    [p0, p1, p2, p3].forEach(p => circle(p.x, p.y, r * 2));
+
+    // curve
+    noFill();
+    stroke('#4a9eff');
+    strokeWeight(PARAMS.lineWeight.value * invZ);
+    beginShape();
+    vertex(p0.x, p0.y);
+    bezierVertex(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+    endShape();
+  }
+
+  // ── Orbiting polygon ─────────────────────────────────────
+  if (PARAMS.showShape.value) {
+    const R     = 120;
+    const angle = t * PARAMS.speed.value;
+    const px    = Math.cos(angle) * R;
+    const py    = Math.sin(angle) * R;
+    const n     = Math.max(3, Math.round(PARAMS.numSides.value));
+    const sr    = 20 / cam.zoom;
+
+    // orbit ghost circle
+    noFill();
+    stroke(55);
+    strokeWeight(1 / cam.zoom);
+    circle(0, 0, R * 2);
+
+    // shape
+    push();
+    translate(px, py);
+    rotate(angle * 1.8);
+    fill(PARAMS.shapeColor.value);
+    noStroke();
+    beginShape();
+    for (let i = 0; i < n; i++) {
+      const a = TWO_PI * i / n - HALF_PI;
+      vertex(Math.cos(a) * sr, Math.sin(a) * sr);
+    }
+    endShape(CLOSE);
+    pop();
+  }
+
+  // ← add your own drawing code here ──────────────────────
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  p5 CORE  —  do not edit below this line                ║
+// ╚══════════════════════════════════════════════════════════╝
+
+const _wrap = document.getElementById('canvas-wrap');
+
+// camera state
+const cam = { x: 0, y: 0, zoom: 1 };
+const ZOOM_MIN  = 0.01;
+const ZOOM_MAX  = 200;
+const ZOOM_K    = 1.12;
+
+// fps rolling buffer
+const _fpsBuf = [];
+let   _fTick  = 0;
+
+// ── setup ────────────────────────────────────────────────
+function setup() {
+  const cnv = createCanvas(_wrap.offsetWidth, _wrap.offsetHeight);
+  cnv.parent('canvas-wrap');
+  pixelDensity(window.devicePixelRatio || 1);
+  cam.x = width  / 2;
+  cam.y = height / 2;
+  buildUI();
+  userSetup();
+}
+
+// ── draw ─────────────────────────────────────────────────
+function draw() {
+  background(26);
+
+  push();
+  translate(cam.x, cam.y);
+  scale(cam.zoom);
+  if (PARAMS.showGrid.value) _drawGrid();
+  userDraw(millis() / 1000);
+  pop();
+
+  _drawHUD();
+
+  // fps
+  _fpsBuf.push(deltaTime);
+  if (_fpsBuf.length > 30) _fpsBuf.shift();
+  if (++_fTick % 15 === 0) {
+    const avg = _fpsBuf.reduce((a, b) => a + b, 0) / _fpsBuf.length;
+    document.getElementById('fps-div').textContent =
+      `FPS: ${Math.round(1000 / avg)}  |  Zoom: ${cam.zoom.toFixed(2)}×`;
+  }
+}
+
+// ── grid ─────────────────────────────────────────────────
+function _drawGrid() {
+  const step = PARAMS.gridStep.value;
+  const tl   = s2w(0, 0);
+  const br   = s2w(width, height);
+  const x0   = Math.floor(tl.x / step) * step;
+  const x1   = Math.ceil( br.x / step) * step;
+  const y0   = Math.floor(tl.y / step) * step;
+  const y1   = Math.ceil( br.y / step) * step;
+
+  strokeWeight(1 / cam.zoom);
+
+  for (let x = x0; x <= x1; x += step) {
+    stroke(Math.round(x / step) % 5 === 0 ? 55 : 36);
+    line(x, y0, x, y1);
+  }
+  for (let y = y0; y <= y1; y += step) {
+    stroke(Math.round(y / step) % 5 === 0 ? 55 : 36);
+    line(x0, y, x1, y);
+  }
+
+  if (PARAMS.showAxes.value) {
+    stroke(90);
+    strokeWeight(1.5 / cam.zoom);
+    line(x0, 0, x1, 0);
+    line(0, y0, 0, y1);
+    const m = 7 / cam.zoom;
+    stroke(130);
+    strokeWeight(2 / cam.zoom);
+    line(-m, 0, m, 0);
+    line(0, -m, 0, m);
+  }
+}
+
+// ── HUD (screen space) ───────────────────────────────────
+function _drawHUD() {
+  noStroke();
+  fill(80);
+  textSize(11);
+  textAlign(LEFT, TOP);
+  text('Drag to pan  ·  Scroll to zoom  ·  Drag ○ to move bézier points', 10, 8);
+}
+
+// ── coordinate helpers ───────────────────────────────────
+function s2w(sx, sy) {
+  return { x: (sx - cam.x) / cam.zoom, y: (sy - cam.y) / cam.zoom };
+}
+
+function w2s(wx, wy) {
+  return { x: wx * cam.zoom + cam.x, y: wy * cam.zoom + cam.y };
+}
+
+// identical names for user convenience
+function screenToWorld(sx, sy) { return s2w(sx, sy); }
+function worldToScreen(wx, wy) { return w2s(wx, wy); }
+
+// ── zoom ─────────────────────────────────────────────────
+function mouseWheel(e) {
+  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+  const f  = e.delta > 0 ? 1 / ZOOM_K : ZOOM_K;
+  const nz = constrain(cam.zoom * f, ZOOM_MIN, ZOOM_MAX);
+  const wx = (mouseX - cam.x) / cam.zoom;
+  const wy = (mouseY - cam.y) / cam.zoom;
+  cam.zoom = nz;
+  cam.x    = mouseX - wx * nz;
+  cam.y    = mouseY - wy * nz;
+  return false;
+}
+
+// ── mouse pan / drag ─────────────────────────────────────
+let _panning = false;
+
+function mousePressed() {
+  if (mouseButton !== LEFT) return;
+  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+  const w    = s2w(mouseX, mouseY);
+  const hitR = 14 / cam.zoom;
+
+  dragIdx = -1;
+  for (let i = 0; i < bpts.length; i++) {
+    if (dist(w.x, w.y, bpts[i].x, bpts[i].y) < hitR) { dragIdx = i; break; }
+  }
+
+  if (dragIdx === -1) {
+    _panning = true;
+    const c = document.querySelector('#canvas-wrap canvas');
+    if (c) c.classList.add('grabbing');
+  }
+  return false;
+}
+
+function mouseDragged() {
+  if (dragIdx !== -1) {
+    const w = s2w(mouseX, mouseY);
+    bpts[dragIdx].x = w.x;
+    bpts[dragIdx].y = w.y;
+  } else if (_panning) {
+    cam.x += mouseX - pmouseX;
+    cam.y += mouseY - pmouseY;
+  }
+  return false;
+}
+
+function mouseReleased() {
+  _panning = false;
+  dragIdx  = -1;
+  const c = document.querySelector('#canvas-wrap canvas');
+  if (c) c.classList.remove('grabbing');
+}
+
+// ── touch pan / pinch-zoom ───────────────────────────────
+let _prevDist  = null;
+let _lastTX    = 0, _lastTY = 0;
+
+function touchStarted() {
+  if (touches.length === 1) {
+    _panning  = true;
+    _lastTX   = touches[0].x;
+    _lastTY   = touches[0].y;
+    _prevDist = null;
+  } else if (touches.length === 2) {
+    _panning  = false;
+    _prevDist = dist(touches[0].x, touches[0].y, touches[1].x, touches[1].y);
+  }
+  return false;
+}
+
+function touchMoved() {
+  if (touches.length === 1 && _panning) {
+    cam.x  += touches[0].x - _lastTX;
+    cam.y  += touches[0].y - _lastTY;
+    _lastTX = touches[0].x;
+    _lastTY = touches[0].y;
+  }
+  if (touches.length === 2 && _prevDist !== null) {
+    const d  = dist(touches[0].x, touches[0].y, touches[1].x, touches[1].y);
+    const mx = (touches[0].x + touches[1].x) / 2;
+    const my = (touches[0].y + touches[1].y) / 2;
+    const f  = d / _prevDist;
+    const nz = constrain(cam.zoom * f, ZOOM_MIN, ZOOM_MAX);
+    const wx = (mx - cam.x) / cam.zoom;
+    const wy = (my - cam.y) / cam.zoom;
+    cam.zoom = nz;
+    cam.x    = mx - wx * nz;
+    cam.y    = my - wy * nz;
+    _prevDist = d;
+  }
+  return false;
+}
+
+function touchEnded() {
+  _panning  = false;
+  _prevDist = null;
+  return false;
+}
+
+// ── resize ───────────────────────────────────────────────
+function windowResized() {
+  resizeCanvas(_wrap.offsetWidth, _wrap.offsetHeight);
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  UI BUILDER  —  do not edit                             ║
+// ╚══════════════════════════════════════════════════════════╝
+
+const _defaults = {};
+
+function buildUI() {
+  const root = document.getElementById('controls');
+  root.innerHTML = '';
+  let curGroup = null;
+
+  for (const [key, spec] of Object.entries(PARAMS)) {
+    _defaults[key] = spec.value;
+
+    if (spec.group && spec.group !== curGroup) {
+      curGroup = spec.group;
+      const h = document.createElement('div');
+      h.className = 'grp-hdr';
+      h.textContent = spec.group;
+      root.appendChild(h);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'ctrl-row';
+
+    if (spec.type === 'checkbox') {
+      const cb = el('input', { type: 'checkbox', id: 'c-' + key, checked: spec.value });
+      cb.addEventListener('input', () => { PARAMS[key].value = cb.checked; });
+      const lb = el('label', { htmlFor: 'c-' + key });
+      lb.textContent = spec.label;
+      row.append(cb, lb);
+
+    } else if (spec.type === 'slider') {
+      const wrap = document.createElement('div');
+      wrap.className = 'sldr-wrap';
+      const top  = document.createElement('div');
+      top.className = 'sldr-top';
+      const lbl  = document.createElement('span');
+      lbl.textContent = spec.label;
+      const vsp  = document.createElement('span');
+      vsp.className = 'sldr-val';
+      vsp.textContent = fmt(spec.value, spec.step);
+      top.append(lbl, vsp);
+      const rng  = el('input', { type: 'range', id: 'c-' + key,
+                                  min: spec.min, max: spec.max,
+                                  step: spec.step, value: spec.value });
+      rng.addEventListener('input', () => {
+        PARAMS[key].value = parseFloat(rng.value);
+        vsp.textContent = fmt(PARAMS[key].value, spec.step);
+      });
+      wrap.append(top, rng);
+      row.appendChild(wrap);
+
+    } else if (spec.type === 'number') {
+      const lb = el('label', { htmlFor: 'c-' + key });
+      lb.textContent = spec.label;
+      const inp = el('input', { type: 'number', id: 'c-' + key,
+                                 min: spec.min, max: spec.max,
+                                 step: spec.step, value: spec.value });
+      inp.addEventListener('input', () => {
+        const v = parseFloat(inp.value);
+        if (!isNaN(v)) PARAMS[key].value = v;
+      });
+      row.append(lb, inp);
+
+    } else if (spec.type === 'color') {
+      const lb = el('label', { htmlFor: 'c-' + key });
+      lb.textContent = spec.label;
+      const inp = el('input', { type: 'color', id: 'c-' + key, value: spec.value });
+      inp.addEventListener('input', () => { PARAMS[key].value = inp.value; });
+      row.append(lb, inp);
+    }
+
+    root.appendChild(row);
+  }
+}
+
+function el(tag, props = {}) {
+  const e = document.createElement(tag);
+  Object.assign(e, props);
+  return e;
+}
+
+function fmt(v, step) {
+  const d = step < 1 ? 2 : step < 10 ? 1 : 0;
+  return Number(v).toFixed(d);
+}
+
+// reset
+document.getElementById('btn-reset').addEventListener('click', () => {
+  for (const [key, spec] of Object.entries(PARAMS)) {
+    spec.value = _defaults[key];
+    const e = document.getElementById('c-' + key);
+    if (!e) continue;
+    if (spec.type === 'checkbox') {
+      e.checked = spec.value;
+    } else {
+      e.value = spec.value;
+      if (spec.type === 'slider') {
+        const vsp = e.previousElementSibling?.querySelector('.sldr-val')
+                 || e.parentElement?.querySelector('.sldr-val');
+        if (vsp) vsp.textContent = fmt(spec.value, spec.step);
+      }
+    }
+  }
+});
+
+// sidebar toggle
+const _sb = document.getElementById('sidebar');
+document.getElementById('sb-toggle').addEventListener('click', () => {
+  const mobile = window.innerWidth <= 600;
+  mobile ? _sb.classList.toggle('open-mobile')
+         : _sb.classList.toggle('collapsed');
+  setTimeout(windowResized, 250);
+});
+</script>
+</body>
+</html>
