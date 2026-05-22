@@ -287,6 +287,23 @@
 
 <script>
 // ╔══════════════════════════════════════════════════════════╗
+// ║  p5.js Scientific Visualization Template                 ║
+// ║  Full API reference → CLAUDE.md                         ║
+// ╠══════════════════════════════════════════════════════════╣
+// ║  EDIT ONLY:                                              ║
+// ║   ①  PARAMS      declare parameters (auto-builds UI)    ║
+// ║   ②  USER SETUP  one-time init                          ║
+// ║   ③  USER DRAW(t) per-frame, world coordinates          ║
+// ╠══════════════════════════════════════════════════════════╣
+// ║  PROVIDED — do not reimplement:                         ║
+// ║   cam.{x,y,zoom}  pan/zoom state (read/write)           ║
+// ║   screenToWorld(sx,sy) / worldToScreen(wx,wy)            ║
+// ║   PARAMS.key.value  live-bound to sidebar controls      ║
+// ║   Grid, axes, FPS, touch pan+pinch, 🖐/✏️ mode toggle  ║
+// ║   buildUI()  auto-generates sidebar from PARAMS          ║
+// ╚══════════════════════════════════════════════════════════╝
+
+// ╔══════════════════════════════════════════════════════════╗
 // ║  ①  PARAMS  —  edit this section for each project       ║
 // ╚══════════════════════════════════════════════════════════╝
 //
