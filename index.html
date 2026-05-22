@@ -26,13 +26,31 @@
       color: var(--text);
       font: 13px/1.4 'Segoe UI', system-ui, sans-serif;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Build bar ───────────────────────────────────── */
+    #build-bar {
+      flex-shrink: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 3px 10px;
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: .04em;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     /* ── Layout ──────────────────────────────────────── */
     #app {
       display: flex;
+      flex: 1;
+      min-height: 0;
       width: 100vw;
-      height: 100vh;
     }
 
     #canvas-wrap {
@@ -206,6 +224,11 @@
 
     #sb-toggle:hover { border-color: var(--accent); }
 
+    /* ── Mode toggle (mobile only) ───────────────────── */
+    #mode-toggle {
+      display: none;   /* hidden on desktop */
+    }
+
     /* ── Mobile ──────────────────────────────────────── */
     @media (max-width: 600px) {
       #app { flex-direction: column; }
@@ -213,7 +236,7 @@
       #sidebar {
         width: 100%  !important;
         min-width: 0 !important;
-        height: 42vh;             /* open by default */
+        height: 42vh;
         border-left: none;
         border-top: 1px solid var(--border);
         transition: height .25s;
@@ -222,14 +245,35 @@
       #sidebar.collapsed-mobile { height: 0; }
 
       #sb-toggle { position: fixed; top: auto; bottom: 10px; right: 10px; }
+
+      #mode-toggle {
+        display: flex;
+        position: fixed;
+        bottom: 10px;
+        right: 54px;   /* 10 + 34 (⚙ width) + 10 gap */
+        z-index: 10;
+        width: 34px; height: 34px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        font-size: 17px;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        transition: border-color .15s;
+      }
     }
   </style>
 </head>
 <body>
 
+<div id="build-bar">Last update: — </div>
+
 <div id="app">
   <div id="canvas-wrap">
-    <button id="sb-toggle" title="Toggle parameters">⚙</button>
+    <button id="sb-toggle" title="Toggle sidebar">⚙</button>
+    <button id="mode-toggle" title="Switch pan / edit mode">🖐</button>
   </div>
   <aside id="sidebar">
     <div id="sb-head"><h2>Parameters</h2></div>
@@ -517,32 +561,43 @@ function mouseReleased() {
   if (c) c.classList.remove('grabbing');
 }
 
-// ── touch pan / pinch-zoom ───────────────────────────────
+// ── touch mode: 'pan' (default) | 'edit' (interact with scene) ──
+let _touchMode = 'pan';
 let _prevDist  = null;
 let _lastTX    = 0, _lastTY = 0;
 
 function touchStarted(e) {
-  if (e.target.tagName !== 'CANVAS') return;   // let sidebar touches pass through
-  if (touches.length === 1) {
+  if (e.target.tagName !== 'CANVAS') return;
+
+  // two fingers always start a pinch regardless of mode
+  if (touches.length === 2) {
+    _panning  = false;
+    _prevDist = dist(touches[0].x, touches[0].y, touches[1].x, touches[1].y);
+    return false;
+  }
+
+  if (_touchMode === 'pan') {
     _panning  = true;
     _lastTX   = touches[0].x;
     _lastTY   = touches[0].y;
     _prevDist = null;
-  } else if (touches.length === 2) {
-    _panning  = false;
-    _prevDist = dist(touches[0].x, touches[0].y, touches[1].x, touches[1].y);
+  } else {
+    // edit mode: hit-test scene objects (same logic as mousePressed)
+    _panning = false;
+    const w    = s2w(mouseX, mouseY);
+    const hitR = 18 / cam.zoom;
+    dragIdx = -1;
+    for (let i = 0; i < bpts.length; i++) {
+      if (dist(w.x, w.y, bpts[i].x, bpts[i].y) < hitR) { dragIdx = i; break; }
+    }
   }
   return false;
 }
 
 function touchMoved(e) {
-  if (e.target.tagName !== 'CANVAS') return;   // let sidebar scroll pass through
-  if (touches.length === 1 && _panning) {
-    cam.x  += touches[0].x - _lastTX;
-    cam.y  += touches[0].y - _lastTY;
-    _lastTX = touches[0].x;
-    _lastTY = touches[0].y;
-  }
+  if (e.target.tagName !== 'CANVAS') return;
+
+  // pinch zoom — always available regardless of mode
   if (touches.length === 2 && _prevDist !== null) {
     const d  = dist(touches[0].x, touches[0].y, touches[1].x, touches[1].y);
     const mx = (touches[0].x + touches[1].x) / 2;
@@ -555,13 +610,26 @@ function touchMoved(e) {
     cam.x    = mx - wx * nz;
     cam.y    = my - wy * nz;
     _prevDist = d;
+    return false;
+  }
+
+  if (_touchMode === 'pan' && _panning) {
+    cam.x  += touches[0].x - _lastTX;
+    cam.y  += touches[0].y - _lastTY;
+    _lastTX = touches[0].x;
+    _lastTY = touches[0].y;
+  } else if (_touchMode === 'edit' && dragIdx !== -1) {
+    const w = s2w(mouseX, mouseY);
+    bpts[dragIdx].x = w.x;
+    bpts[dragIdx].y = w.y;
   }
   return false;
 }
 
 function touchEnded(e) {
-  if (e.target.tagName !== 'CANVAS') return;   // let sidebar touches pass through
+  if (e.target.tagName !== 'CANVAS') return;
   _panning  = false;
+  dragIdx   = -1;
   _prevDist = null;
   return false;
 }
@@ -686,6 +754,23 @@ document.getElementById('sb-toggle').addEventListener('click', () => {
          : _sb.classList.toggle('collapsed');
   setTimeout(windowResized, 250);
 });
+
+// mode toggle (mobile only: pan ↔ edit)
+const _modeBtn = document.getElementById('mode-toggle');
+_modeBtn.addEventListener('click', () => {
+  _touchMode = _touchMode === 'pan' ? 'edit' : 'pan';
+  _modeBtn.textContent  = _touchMode === 'pan' ? '🖐' : '✏️';
+  _modeBtn.style.borderColor = _touchMode === 'edit' ? 'var(--accent)' : '';
+  _modeBtn.title = _touchMode === 'pan' ? 'Pan mode — tap to switch to Edit'
+                                        : 'Edit mode — tap to switch to Pan';
+});
+
+// ── build info ────────────────────────────────────────────
+// Update _BUILD_HASH and _BUILD_DATE on each commit.
+const _BUILD_HASH = 'pending';
+const _BUILD_DATE = '2026-05-22';
+document.getElementById('build-bar').textContent =
+  `Last update: ${_BUILD_HASH} · ${_BUILD_DATE}`;
 </script>
 </body>
 </html>
