@@ -206,20 +206,20 @@
 
     /* ── Mobile ──────────────────────────────────────── */
     @media (max-width: 600px) {
-      #app         { flex-direction: column; }
+      #app { flex-direction: column; }
 
       #sidebar {
         width: 100%  !important;
         min-width: 0 !important;
-        height: 0;
+        height: 42vh;             /* open by default */
         border-left: none;
         border-top: 1px solid var(--border);
         transition: height .25s;
       }
 
-      #sidebar.open-mobile { height: 46vh; }
+      #sidebar.collapsed-mobile { height: 0; }
 
-      #sb-toggle   { top: auto; bottom: 10px; right: 10px; }
+      #sb-toggle { top: auto; bottom: 10px; right: 10px; }
     }
   </style>
 </head>
@@ -677,7 +677,7 @@ document.getElementById('btn-reset').addEventListener('click', () => {
 const _sb = document.getElementById('sidebar');
 document.getElementById('sb-toggle').addEventListener('click', () => {
   const mobile = window.innerWidth <= 600;
-  mobile ? _sb.classList.toggle('open-mobile')
+  mobile ? _sb.classList.toggle('collapsed-mobile')
          : _sb.classList.toggle('collapsed');
   setTimeout(windowResized, 250);
 });
